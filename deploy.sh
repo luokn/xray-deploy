@@ -7,8 +7,9 @@
 
 NAME=
 DOMAIN=
-PASSWD=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
+DRY_RUN=
 
+PASSWD=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
 GRPC_UUID=$(cat /proc/sys/kernel/random/uuid)
 CONF_UUID=$(cat /proc/sys/kernel/random/uuid)
 RULE_UUID=$(cat /proc/sys/kernel/random/uuid)
@@ -21,16 +22,22 @@ NGINX_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/n
 CLASH_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/clash"
 
 # Get the domain name from command line
-while getopts n:d: OPT; do
-    case $OPT in
-    n)
-        NAME=$OPTARG
+while [[ $# -gt 0 ]]; do
+    case $1 in
+    -n | --name)
+        NAME=$2
+        shift 2
         ;;
-    d)
-        DOMAIN=$OPTARG
+    -d | --domain)
+        DOMAIN=$2
+        shift 2
+        ;;
+    --dry-run)
+        DRY_RUN=echo
+        shift 1
         ;;
     *)
-        echo "Usage: $0 -n <NAME> -d <DOMAIN>"
+        echo "Usage: $0 -n <NAME> -d <DOMAIN> [--dry-run]"
         exit 2
         ;;
     esac
@@ -66,7 +73,9 @@ install_dependencies() {
     echo "Installing dependencies..."
 
     # Install certbot/nginx/git/curl from apt.
-    apt update && apt install certbot nginx git curl unzip
+
+    $DRY_RUN apt update
+    $DRY_RUN apt install certbot nginx git curl unzip
 
     # Install xray from github if it is not installed.
     if [ -z $(which xray) ]; then
@@ -90,11 +99,11 @@ install_dependencies() {
         fi
         # Move the binary file to /usr/local/bin.
         # Move the geoip.dat/geosite.dat to /usr/local/share.
-        mv -f $TMP_DIR/xray /usr/local/bin/
-        mv -f $TMP_DIR/geo* /usr/local/share/
+        $DRY_RUN mv -f $TMP_DIR/xray /usr/local/bin/
+        $DRY_RUN mv -f $TMP_DIR/geo* /usr/local/share/
 
         # Remove the temporary files.
-        rm -rf $TMP_DIR $TMP_FILE
+        $DRY_RUN rm -rf $TMP_DIR $TMP_FILE
     else
         echo "Xray is already installed! Remove it first if you want to reinstall it."
         exit 1
@@ -105,7 +114,7 @@ ensure_https_certs() {
     if [ -d /etc/letsencrypt/live/$DOMAIN ]; then
         echo "Renewing HTTPS certificates..."
 
-        certbot renew
+        $DRY_RUN certbot renew
         if [ $? -ne 0 ]; then
             echo "Failed to renew HTTPS certificates!"
             exit 1
@@ -113,7 +122,7 @@ ensure_https_certs() {
     else
         echo "Generating HTTPS certificates..."
 
-        certbot certonly --webroot -w /var/www/html -d $DOMAIN -d www.$DOMAIN
+        $DRY_RUN certbot certonly --webroot -w /var/www/html -d $DOMAIN -d www.$DOMAIN
         if [ $? -ne 0 ]; then
             echo "Failed to generate HTTPS certificates!"
             exit 1
@@ -143,12 +152,16 @@ WantedBy=multi-user.target"
 
     echo "Enabling xray systemd service..."
 
-    # Generate the xray systemd service file.
-    echo "$SYSTEMD_SERVICE" >|/usr/lib/systemd/system/xray.service
+    if [ -z $DRY_RUN ]; then
+        # Generate the xray systemd service file.
+        echo "$SYSTEMD_SERVICE" >|/usr/lib/systemd/system/xray.service
+    else
+        echo "echo $SYSTEMD_SERVICE >|/usr/lib/systemd/system/xray.service"
+    fi
 
     # Enable the xray systemd service.
-    systemctl daemon-reload
-    systemctl enable xray
+    $DRY_RUN systemctl daemon-reload
+    $DRY_RUN systemctl enable xray
 }
 
 download_clash_rules() {
@@ -156,7 +169,7 @@ download_clash_rules() {
     if [ ! -d /var/www/clash-rules ]; then
         echo "Cloning clash-rules from GitHub..."
 
-        git clone https://github.com/luokn/clash-rules
+        $DRY_RUN git clone https://github.com/luokn/clash-rules
         if [ $? -ne 0 ]; then
             echo "Failed to clone clash-rules from GitHub!"
             exit 1
@@ -170,20 +183,20 @@ download_clash_dashboard() {
     if [ ! -d /var/www/clash-dashboard ]; then
         echo "Cloning clash-dashboard from GitHub..."
 
-        git clone https://github.com/Dreamacro/clash-dashboard
+        $DRY_RUN git clone https://github.com/Dreamacro/clash-dashboard
         if [ $? -ne 0 ]; then
             echo "Failed to clone clash-dashboard from GitHub!"
             exit 1
         fi
 
         # Link clash-dashboard to html
-        rm -rf ./html
-        ln -sf ./clash-dashboard ./html
+        $DRY_RUN rm -rf ./html
+        $DRY_RUN ln -sf ./clash-dashboard ./html
 
         # Checkout gh-pages branch
-        cd html
-        git checkout gh-pages
-        cd -
+        $DRY_RUN cd html
+        $DRY_RUN git checkout gh-pages
+        $DRY_RUN cd -
     fi
     cd -
 }
@@ -201,7 +214,7 @@ generate_clash_config() {
     fi
     sed -i "s/@NAME/$NAME/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
     # Move the clash config file to /var/www.
-    mv -bf $TMP_FILE /var/www/clash-config.yaml
+    $DRY_RUN mv -bf $TMP_FILE /var/www/clash-config.yaml
 }
 
 configure_nginx() {
@@ -217,10 +230,10 @@ configure_nginx() {
     fi
     sed -i "s/@DOMAIN/$DOMAIN/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@CONF_UUID/$CONF_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
     # Move the nginx config file to /etc/nginx/sites-available.
-    mv -bf $TMP_FILE /etc/nginx/sites-available/default
+    $DRY_RUN mv -bf $TMP_FILE /etc/nginx/sites-available/default
 
     # Restart nginx.
-    systemctl restart nginx
+    $DRY_RUN systemctl restart nginx
 }
 
 configure_xray() {
@@ -236,10 +249,10 @@ configure_xray() {
     fi
     sed -i "s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
     # Move the xray config file to /usr/local/etc/xray.
-    mv -bf $TMP_FILE /usr/local/etc/xray/config.json
+    $DRY_RUN mv -bf $TMP_FILE /usr/local/etc/xray/config.json
 
     # Restart xray.
-    systemctl restart xray
+    $DRY_RUN systemctl restart xray
 }
 
 enable_xray_logging() {
@@ -256,19 +269,23 @@ enable_xray_logging() {
 
     # Check if the log directory exists.
     if [ ! -d /var/log/xray ]; then
-        mkdir /var/log/xray
+        $DRY_RUN mkdir /var/log/xray
     fi
 
     # Check if the owner of /var/log/xray is nobody:nogroup
     if [ $(stat -c %U:%G /var/log/xray) != "nobody:nogroup" ]; then
-        chown -R nobody:nogroup /var/log/xray
+        $DRY_RUN chown -R nobody:nogroup /var/log/xray
     fi
 
     if [ ! -f /etc/logrotate.d/xray ]; then
         echo "Configuring logrotate for xray..."
 
-        # Generate the logrotate config file.
-        echo "$LOGROTATE_CONF" >|/etc/logrotate.d/xray
+        if [ -z $DRY_RUN ]; then
+            # Generate the logrotate config file.
+            echo "$LOGROTATE_CONF" >|/etc/logrotate.d/xray
+        else
+            echo "echo $LOGROTATE_CONF >|/etc/logrotate.d/xray"
+        fi
     fi
 }
 
@@ -276,10 +293,16 @@ enable_bbr() {
     if [ -z $(lsmod | grep tcp_bbr) ]; then
         echo "Enabling BBR for congestion control..."
 
-        # Enable BBR for congestion control.
-        echo "net.core.default_qdisc=fq" >>/etc/sysctl.conf
-        echo "net.ipv4.tcp_congestion_control=bbr" >>/etc/sysctl.conf
-        sysctl -p --quiet
+        if [ -z $DRY_RUN ]; then
+            # Enable BBR for congestion control.
+            echo "net.core.default_qdisc=fq" >>/etc/sysctl.conf
+            echo "net.ipv4.tcp_congestion_control=bbr" >>/etc/sysctl.conf
+            sysctl -p --quiet
+        else
+            echo "echo net.core.default_qdisc=fq >>/etc/sysctl.conf"
+            echo "echo net.ipv4.tcp_congestion_control=bbr >>/etc/sysctl.conf"
+            echo "sysctl -p --quiet"
+        fi
     fi
 }
 
