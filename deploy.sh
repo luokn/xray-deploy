@@ -181,7 +181,7 @@ download_clash_dashboard() {
         ln -sf ./clash-dashboard ./html
 
         # Checkout gh-pages branch
-        cd clash-dashboard
+        cd html
         git checkout gh-pages
         cd -
     fi
