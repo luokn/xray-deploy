@@ -16,9 +16,9 @@ RULE_UUID=$(cat /proc/sys/kernel/random/uuid)
 GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
 
-XRAY_CONFIG="https://gist.githubusercontent.com/luokn/04da62625dcaba009f0ba689b7054e00/raw/xray-config-template"
-NGINX_CONFIG="https://gist.githubusercontent.com/luokn/6d2d2f03f6867cfd82eace10170c7f4e/raw/nginx-config-template"
-CLASH_CONFIG="https://gist.githubusercontent.com/luokn/1d693e83f7e469a9e38400c366fc0aa1/raw/clash-config-template"
+XRAY_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/xray-grpc"
+NGINX_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/nginx"
+CLASH_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/clash"
 
 # Get the domain name from command line
 while getopts n:d: OPT; do
@@ -60,6 +60,9 @@ if [ $(uname -m) != "x86_64" ]; then
 fi
 
 install_dependencies() {
+    local TMP_FILE=$TMP_DIR.zip
+    local TMP_DIR=$TMP_DIR
+
     echo "Installing dependencies..."
 
     # Install certbot/nginx/git/curl from apt.
@@ -74,24 +77,24 @@ install_dependencies() {
             exit 1
         fi
         # Download the latest release.
-        curl -sL $DL_URL -o /tmp/Xray-linux-64.zip
+        curl -sL $DL_URL -o $TMP_FILE
         if [ $? -ne 0 ]; then
             echo "Failed to download Xray from github!"
             exit 1
         fi
         # Unzip the downloaded file.
-        unzip /tmp/Xray-linux-64.zip -d /tmp/Xray-linux-64
+        unzip $TMP_FILE -d $TMP_DIR
         if [ $? -ne 0 ]; then
             echo "Failed to unzip Xray!"
             exit 1
         fi
         # Move the binary file to /usr/local/bin.
         # Move the geoip.dat/geosite.dat to /usr/local/share.
-        mv -f /tmp/Xray-linux-64/xray /usr/local/bin/
-        mv -f /tmp/Xray-linux-64/*.dat /usr/local/share/
+        mv -f $TMP_DIR/xray /usr/local/bin/
+        mv -f $TMP_DIR/geo* /usr/local/share/
 
         # Remove the temporary files.
-        rm -rf /tmp/Xray-linux-64 /tmp/Xray-linux-64.zip
+        rm -rf $TMP_DIR $TMP_FILE
     else
         echo "Xray is already installed! Remove it first if you want to reinstall it."
         exit 1
@@ -150,12 +153,12 @@ WantedBy=multi-user.target"
 
 download_clash_rules() {
     cd /var/www
-    if [ ! -d /var/www/my-clash-rules ]; then
-        echo "Cloning my-clash-rules from GitHub..."
+    if [ ! -d /var/www/clash-rules ]; then
+        echo "Cloning clash-rules from GitHub..."
 
-        git clone https://github.com/luokn/my-clash-rules
+        git clone https://github.com/luokn/clash-rules
         if [ $? -ne 0 ]; then
-            echo "Failed to clone my-clash-rules from GitHub!"
+            echo "Failed to clone clash-rules from GitHub!"
             exit 1
         fi
     fi
@@ -172,63 +175,68 @@ download_clash_dashboard() {
             echo "Failed to clone clash-dashboard from GitHub!"
             exit 1
         fi
-        # Checkout gh-pages branch
-        cd /var/www/clash-dashboard
-        git checkout gh-pages
-        cd -
+
         # Link clash-dashboard to html
         rm -rf ./html
         ln -sf ./clash-dashboard ./html
+
+        # Checkout gh-pages branch
+        cd clash-dashboard
+        git checkout gh-pages
+        cd -
     fi
     cd -
 }
 
 generate_clash_config() {
+    local TMP_FILE=/tmp/clash-config
+
     echo "Generating clash config file..."
 
     # Download the clash config template.
-    curl -sL $CLASH_CONFIG -o /tmp/clash-config-template
+    curl -sL $CLASH_CONFIG -o $TMP_FILE
     if [ $? -ne 0 ]; then
         echo "Failed to download clash config template!"
         exit 1
     fi
-    sed -i "s/{NAME}/$NAME/g;s/{DOMAIN}/$DOMAIN/g;s/{PASSWD}/$PASSWD/g;s/{GRPC_UUID}/$GRPC_UUID/g" \
-        /tmp/clash-config-template
-    # Move the clash config file to /var/www/html.
-    mv -bf /tmp/clash-config-template /var/www/html/clash-config.yaml
+    sed -i "s/@NAME/$NAME/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
+    # Move the clash config file to /var/www.
+    mv -bf $TMP_FILE /var/www/clash-config.yaml
 }
 
 configure_nginx() {
+    local TMP_FILE=/tmp/nginx-config
+
     echo "Configuring nginx..."
 
     # Download the nginx config template.
-    curl -sL $NGINX_CONFIG -o /tmp/nginx-config-template
+    curl -sL $NGINX_CONFIG -o $TMP_FILE
     if [ $? -ne 0 ]; then
         echo "Failed to download nginx config template!"
         exit 1
     fi
-    sed -i "s/{DOMAIN}/$DOMAIN/g;s/{GRPC_UUID}/$GRPC_UUID/g;s/{CONF_UUID}/$CONF_UUID/g;s/{RULE_UUID}/$RULE_UUID/g" \
-        /tmp/nginx-config-template
+    sed -i "s/@DOMAIN/$DOMAIN/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@CONF_UUID/$CONF_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
     # Move the nginx config file to /etc/nginx/sites-available.
-    mv -bf /tmp/nginx-config-template /etc/nginx/sites-available/default
+    mv -bf $TMP_FILE /etc/nginx/sites-available/default
 
     # Restart nginx.
     systemctl restart nginx
 }
 
 configure_xray() {
+    local TMP_FILE=/tmp/xray-config
+
     echo "Downloading xray config template..."
 
     # Download the xray config template.
-    curl -sL $XRAY_CONFIG -o /tmp/xray-config-template
+    curl -sL $XRAY_CONFIG -o $TMP_FILE
     if [ $? -ne 0 ]; then
         echo "Failed to download xray config template!"
         exit 1
     fi
-    sed -i "s/{DOMAIN}/$DOMAIN/g;s/{PASSWD}/$PASSWD/g;s/{GRPC_UUID}/$GRPC_UUID/g" \
-        /tmp/xray-config-template
+    sed -i "s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
     # Move the xray config file to /usr/local/etc/xray.
-    mv -bf /tmp/xray-config-template /usr/local/etc/xray/config.json
+    mv -bf $TMP_FILE /usr/local/etc/xray/config.json
 
     # Restart xray.
     systemctl restart xray
