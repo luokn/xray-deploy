@@ -212,7 +212,7 @@ generate_clash_config() {
         echo "Failed to download clash config template!"
         exit 1
     fi
-    sed -i "s/@NAME/$NAME/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
+    sed -i "s/@NAME/$NAME/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
     # Move the clash config file to /var/www.
     $DRY_RUN mv -bf $TMP_FILE /var/www/clash-config.yaml
 }
