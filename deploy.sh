@@ -5,8 +5,8 @@
 # @Author : Luo Kun
 # @Contact: luokun485@gmail.com
 
-NAME=
 DOMAIN=
+PROXY=
 DRY_RUN=
 
 PASSWD=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
@@ -17,19 +17,19 @@ RULE_UUID=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
 GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
 
-XRAY_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/xray-grpc"
-NGINX_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/nginx"
-CLASH_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/temples/clash"
+XRAY_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/templates/xray-grpc"
+NGINX_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/templates/nginx"
+CLASH_CONFIG="https://raw.githubusercontent.com/luokn/xray-deploy/main/templates/clash"
 
 # Get the domain name from command line
 while [[ $# -gt 0 ]]; do
     case $1 in
-    -n | --name)
-        NAME=$2
-        shift 2
-        ;;
     -d | --domain)
         DOMAIN=$2
+        shift 2
+        ;;
+    -p | --proxy)
+        PROXY=$2
         shift 2
         ;;
     --dry-run)
@@ -37,20 +37,21 @@ while [[ $# -gt 0 ]]; do
         shift 1
         ;;
     *)
-        echo "Usage: $0 -n <NAME> -d <DOMAIN> [--dry-run]"
+        echo "Usage: $0 -d <DOMAIN> -p <PROXY> [--dry-run]"
         exit 2
         ;;
     esac
 done
 
-if [ -z "$NAME" ]; then
-    echo "Please specify the proxy server name!"
-    exit 2
-fi
-
 # Check if the domain name is specified
 if [ -z "$DOMAIN" ]; then
     echo "Please specify the domain name!"
+    exit 2
+fi
+
+# Check if the proxy server name is specified
+if [ -z "$PROXY" ]; then
+    echo "Please specify the proxy server name!"
     exit 2
 fi
 
@@ -212,7 +213,7 @@ generate_clash_config() {
         echo "Failed to download clash config template!"
         exit 1
     fi
-    sed -i "s/@NAME/$NAME/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
+    sed -i "s/@PROXY/$PROXY/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
     # Move the clash config file to /var/www.
     $DRY_RUN mv -bf $TMP_FILE /var/www/clash-config.yaml
 }

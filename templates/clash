@@ -4,9 +4,9 @@ mode: rule
 log-level: info
 external-controller: 127.0.0.1:9090
 proxies:
-    - { name: 🪐 @NAME ,type: trojan, server: @DOMAIN, port: 443, password: @PASSWD, udp: true, network: grpc, grpc-opts: { grpc-service-name: @GRPC_UUID } }
+    - { name: 🪐 @PROXY ,type: trojan, server: @DOMAIN, port: 443, password: @PASSWD, udp: true, network: grpc, grpc-opts: { grpc-service-name: @GRPC_UUID } }
 proxy-groups:
-    - { name: 🕹️ 代理, type: select, proxies: [🪐 @NAME, DIRECT] }
+    - { name: 🕹️ 代理, type: select, proxies: [🪐 @PROXY, DIRECT] }
     - { name: 🎯 直连, type: select, proxies: [DIRECT] }
 rule-providers:
     🎮 域名集:
