@@ -92,7 +92,7 @@ install_dependencies() {
             exit 1
         fi
         # Unzip the downloaded file.
-        unzip $TMP_FILE -d $TMP_DIR
+        unzip -o $TMP_FILE -d $TMP_DIR
         if [ $? -ne 0 ]; then
             echo "Failed to unzip Xray!"
             exit 1
