@@ -267,13 +267,10 @@ enable_xray_logging() {
     copytruncate
 }"
 
-    # Check if the log directory exists.
-    if [ ! -d /var/log/xray ]; then
-        $DRY_RUN mkdir /var/log/xray
-    fi
+    # Ensure the log directory exists.
+    $DRY_RUN mkdir -p /var/log/xray
 
-    # Check if the owner of /var/log/xray is nobody:nogroup
-    if [ "$(stat -c %U:%G /var/log/xray)" != "nobody:nogroup" ]; then
+    if [[ -d /var/log/xray ]] && [[ "$(stat -c %U:%G /var/log/xray)" != "nobody:nogroup" ]]; then
         $DRY_RUN chown -R nobody:nogroup /var/log/xray
     fi
 
