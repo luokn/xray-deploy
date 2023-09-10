@@ -10,9 +10,9 @@ DOMAIN=
 DRY_RUN=
 
 PASSWD=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
-GRPC_UUID=$(cat /proc/sys/kernel/random/uuid)
-CONF_UUID=$(cat /proc/sys/kernel/random/uuid)
-RULE_UUID=$(cat /proc/sys/kernel/random/uuid)
+GRPC_UUID=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
+CONF_UUID=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
+RULE_UUID=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
 
 GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
@@ -336,3 +336,4 @@ configure_nginx
 enable_bbr
 
 echo "Deployment completed!"
+echo "Subsciption URL: https://$DOMAIN/$CONF_UUID"
