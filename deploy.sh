@@ -43,25 +43,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ -z $NAME ]; then
+if [ -z "$NAME" ]; then
     echo "Please specify the proxy server name!"
     exit 2
 fi
 
 # Check if the domain name is specified
-if [ -z $DOMAIN ]; then
+if [ -z "$DOMAIN" ]; then
     echo "Please specify the domain name!"
     exit 2
 fi
 
 # Check if the script is run as root
-if [ $(whoami) != "root" ]; then
+if [ "$(whoami)" != "root" ]; then
     echo "Please run this script as root!"
     exit 1
 fi
 
 # Check if the domain name is valid
-if [ $(uname -m) != "x86_64" ]; then
+if [ "$(uname -m)" != "x86_64" ]; then
     echo "This script only supports x86_64!"
     exit 1
 fi
@@ -78,7 +78,7 @@ install_dependencies() {
     $DRY_RUN apt install certbot nginx git curl unzip
 
     # Install xray from github if it is not installed.
-    if [ -z $(which xray) ]; then
+    if [ -z "$(which xray)" ]; then
         # Get the download url of the latest release.
         local DL_URL=$(curl -sL $GITHUB_API | grep -oE $DL_URL_REG | head -n 1)
         if [ -z $DL_URL ]; then
@@ -152,7 +152,7 @@ WantedBy=multi-user.target"
 
     echo "Enabling xray systemd service..."
 
-    if [ -z $DRY_RUN ]; then
+    if [ -z "$DRY_RUN" ]; then
         # Generate the xray systemd service file.
         echo "$SYSTEMD_SERVICE" >|/usr/lib/systemd/system/xray.service
     else
@@ -273,7 +273,7 @@ enable_xray_logging() {
     fi
 
     # Check if the owner of /var/log/xray is nobody:nogroup
-    if [ $(stat -c %U:%G /var/log/xray) != "nobody:nogroup" ]; then
+    if [ "$(stat -c %U:%G /var/log/xray)" != "nobody:nogroup" ]; then
         $DRY_RUN chown -R nobody:nogroup /var/log/xray
     fi
 
@@ -290,7 +290,7 @@ enable_xray_logging() {
 }
 
 enable_bbr() {
-    if [ -z $(lsmod | grep tcp_bbr) ]; then
+    if [ -z "$(lsmod | grep tcp_bbr)" ]; then
         echo "Enabling BBR for congestion control..."
 
         if [ -z $DRY_RUN ]; then
