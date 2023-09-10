@@ -67,8 +67,8 @@ if [ $(uname -m) != "x86_64" ]; then
 fi
 
 install_dependencies() {
-    local TMP_FILE=$TMP_DIR.zip
-    local TMP_DIR=$TMP_DIR
+    local TMP_FILE=/tmp/Xray-linux-64.zip
+    local TMP_DIR=/tmp/Xray-linux-64
 
     echo "Installing dependencies..."
 
