@@ -1,0 +1,28 @@
+{
+    "log": {
+        "loglevel": "warning",
+        "access": "/var/log/xray/access.log",
+        "error": "/var/log/xray/error.log"
+    },
+    "inbounds": [
+        {
+            "listen": "/dev/shm/xray-trojan-grpc.sock,0666",
+            "protocol": "trojan",
+            "settings": {
+                "clients": [{ "password": "@PASSWD", "email": "me@@DOMAIN" }]
+            },
+            "streamSettings": {
+                "network": "grpc",
+                "grpcSettings": { "serviceName": "@GRPC_UUID" }
+            }
+        }
+    ],
+    "outbounds": [
+        { "protocol": "freedom", "tag": "direct" },
+        { "protocol": "blackhole", "tag": "block" }
+    ],
+    "routing": {
+        "domainStrategy": "AsIs",
+        "rules": [{ "type": "field", "ip": ["geoip:private"], "outboundTag": "block" }]
+    }
+}

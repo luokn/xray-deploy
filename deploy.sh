@@ -1,0 +1,307 @@
+#!/usr/bin/bash
+# -*- coding: utf-8 -*-
+# @File   : deploy.sh
+# @Data   : 2023/03/20
+# @Author : Luo Kun
+# @Contact: luokun485@gmail.com
+
+NAME=
+DOMAIN=
+PASSWD=$(cat /proc/sys/kernel/random/uuid | awk -F "-" '{print $5}')
+
+GRPC_UUID=$(cat /proc/sys/kernel/random/uuid)
+CONF_UUID=$(cat /proc/sys/kernel/random/uuid)
+RULE_UUID=$(cat /proc/sys/kernel/random/uuid)
+
+GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
+DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
+
+XRAY_CONFIG="https://gist.githubusercontent.com/luokn/04da62625dcaba009f0ba689b7054e00/raw/xray-config-template"
+NGINX_CONFIG="https://gist.githubusercontent.com/luokn/6d2d2f03f6867cfd82eace10170c7f4e/raw/nginx-config-template"
+CLASH_CONFIG="https://gist.githubusercontent.com/luokn/1d693e83f7e469a9e38400c366fc0aa1/raw/clash-config-template"
+
+# Get the domain name from command line
+while getopts n:d: OPT; do
+    case $OPT in
+    n)
+        NAME=$OPTARG
+        ;;
+    d)
+        DOMAIN=$OPTARG
+        ;;
+    *)
+        echo "Usage: $0 -n <NAME> -d <DOMAIN>"
+        exit 2
+        ;;
+    esac
+done
+
+if [ -z $NAME ]; then
+    echo "Please specify the proxy server name!"
+    exit 2
+fi
+
+# Check if the domain name is specified
+if [ -z $DOMAIN ]; then
+    echo "Please specify the domain name!"
+    exit 2
+fi
+
+# Check if the script is run as root
+if [ $(whoami) != "root" ]; then
+    echo "Please run this script as root!"
+    exit 1
+fi
+
+# Check if the domain name is valid
+if [ $(uname -m) != "x86_64" ]; then
+    echo "This script only supports x86_64!"
+    exit 1
+fi
+
+install_dependencies() {
+    echo "Installing dependencies..."
+
+    # Install certbot/nginx/git/curl from apt.
+    apt update && apt install certbot nginx git curl unzip
+
+    # Install xray from github if it is not installed.
+    if [ -z $(which xray) ]; then
+        # Get the download url of the latest release.
+        local DL_URL=$(curl -sL $GITHUB_API | grep -oE $DL_URL_REG | head -n 1)
+        if [ -z $DL_URL ]; then
+            echo "Failed to get download url from github!"
+            exit 1
+        fi
+        # Download the latest release.
+        curl -sL $DL_URL -o /tmp/Xray-linux-64.zip
+        if [ $? -ne 0 ]; then
+            echo "Failed to download Xray from github!"
+            exit 1
+        fi
+        # Unzip the downloaded file.
+        unzip /tmp/Xray-linux-64.zip -d /tmp/Xray-linux-64
+        if [ $? -ne 0 ]; then
+            echo "Failed to unzip Xray!"
+            exit 1
+        fi
+        # Move the binary file to /usr/local/bin.
+        # Move the geoip.dat/geosite.dat to /usr/local/share.
+        mv -f /tmp/Xray-linux-64/xray /usr/local/bin/
+        mv -f /tmp/Xray-linux-64/*.dat /usr/local/share/
+
+        # Remove the temporary files.
+        rm -rf /tmp/Xray-linux-64 /tmp/Xray-linux-64.zip
+    else
+        echo "Xray is already installed! Remove it first if you want to reinstall it."
+        exit 1
+    fi
+}
+
+ensure_https_certs() {
+    if [ -d /etc/letsencrypt/live/$DOMAIN ]; then
+        echo "Renewing HTTPS certificates..."
+
+        certbot renew
+        if [ $? -ne 0 ]; then
+            echo "Failed to renew HTTPS certificates!"
+            exit 1
+        fi
+    else
+        echo "Generating HTTPS certificates..."
+
+        certbot certonly --webroot -w /var/www/html -d $DOMAIN -d www.$DOMAIN
+        if [ $? -ne 0 ]; then
+            echo "Failed to generate HTTPS certificates!"
+            exit 1
+        fi
+    fi
+}
+
+enable_xray_service() {
+    local SYSTEMD_SERVICE="[Unit]
+Description=Xray Service
+Documentation=https://github.com/xtls
+After=network.target nss-lookup.target
+
+[Service]
+User=nobody
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ExecStart=/usr/local/bin/xray run -config /usr/local/etc/xray/config.json
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target"
+
+    echo "Enabling xray systemd service..."
+
+    # Generate the xray systemd service file.
+    echo "$SYSTEMD_SERVICE" >|/usr/lib/systemd/system/xray.service
+
+    # Enable the xray systemd service.
+    systemctl daemon-reload
+    systemctl enable xray
+}
+
+download_clash_rules() {
+    cd /var/www
+    if [ ! -d /var/www/my-clash-rules ]; then
+        echo "Cloning my-clash-rules from GitHub..."
+
+        git clone https://github.com/luokn/my-clash-rules
+        if [ $? -ne 0 ]; then
+            echo "Failed to clone my-clash-rules from GitHub!"
+            exit 1
+        fi
+    fi
+    cd -
+}
+
+download_clash_dashboard() {
+    cd /var/www
+    if [ ! -d /var/www/clash-dashboard ]; then
+        echo "Cloning clash-dashboard from GitHub..."
+
+        git clone https://github.com/Dreamacro/clash-dashboard
+        if [ $? -ne 0 ]; then
+            echo "Failed to clone clash-dashboard from GitHub!"
+            exit 1
+        fi
+        # Checkout gh-pages branch
+        cd /var/www/clash-dashboard
+        git checkout gh-pages
+        cd -
+        # Link clash-dashboard to html
+        rm -rf ./html
+        ln -sf ./clash-dashboard ./html
+    fi
+    cd -
+}
+
+generate_clash_config() {
+    echo "Generating clash config file..."
+
+    # Download the clash config template.
+    curl -sL $CLASH_CONFIG -o /tmp/clash-config-template
+    if [ $? -ne 0 ]; then
+        echo "Failed to download clash config template!"
+        exit 1
+    fi
+    sed -i "s/{NAME}/$NAME/g;s/{DOMAIN}/$DOMAIN/g;s/{PASSWD}/$PASSWD/g;s/{GRPC_UUID}/$GRPC_UUID/g" \
+        /tmp/clash-config-template
+    # Move the clash config file to /var/www/html.
+    mv -bf /tmp/clash-config-template /var/www/html/clash-config.yaml
+}
+
+configure_nginx() {
+    echo "Configuring nginx..."
+
+    # Download the nginx config template.
+    curl -sL $NGINX_CONFIG -o /tmp/nginx-config-template
+    if [ $? -ne 0 ]; then
+        echo "Failed to download nginx config template!"
+        exit 1
+    fi
+    sed -i "s/{DOMAIN}/$DOMAIN/g;s/{GRPC_UUID}/$GRPC_UUID/g;s/{CONF_UUID}/$CONF_UUID/g;s/{RULE_UUID}/$RULE_UUID/g" \
+        /tmp/nginx-config-template
+    # Move the nginx config file to /etc/nginx/sites-available.
+    mv -bf /tmp/nginx-config-template /etc/nginx/sites-available/default
+
+    # Restart nginx.
+    systemctl restart nginx
+}
+
+configure_xray() {
+    echo "Downloading xray config template..."
+
+    # Download the xray config template.
+    curl -sL $XRAY_CONFIG -o /tmp/xray-config-template
+    if [ $? -ne 0 ]; then
+        echo "Failed to download xray config template!"
+        exit 1
+    fi
+    sed -i "s/{DOMAIN}/$DOMAIN/g;s/{PASSWD}/$PASSWD/g;s/{GRPC_UUID}/$GRPC_UUID/g" \
+        /tmp/xray-config-template
+    # Move the xray config file to /usr/local/etc/xray.
+    mv -bf /tmp/xray-config-template /usr/local/etc/xray/config.json
+
+    # Restart xray.
+    systemctl restart xray
+}
+
+enable_xray_logging() {
+    local LOGROTATE_CONF="/var/log/xray/*.log {
+    rotate 10
+    daily
+    dateext 
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}"
+
+    # Check if the log directory exists.
+    if [ ! -d /var/log/xray ]; then
+        mkdir /var/log/xray
+    fi
+
+    # Check if the owner of /var/log/xray is nobody:nogroup
+    if [ $(stat -c %U:%G /var/log/xray) != "nobody:nogroup" ]; then
+        chown -R nobody:nogroup /var/log/xray
+    fi
+
+    if [ ! -f /etc/logrotate.d/xray ]; then
+        echo "Configuring logrotate for xray..."
+
+        # Generate the logrotate config file.
+        echo "$LOGROTATE_CONF" >|/etc/logrotate.d/xray
+    fi
+}
+
+enable_bbr() {
+    if [ -z $(lsmod | grep tcp_bbr) ]; then
+        echo "Enabling BBR for congestion control..."
+
+        # Enable BBR for congestion control.
+        echo "net.core.default_qdisc=fq" >>/etc/sysctl.conf
+        echo "net.ipv4.tcp_congestion_control=bbr" >>/etc/sysctl.conf
+        sysctl -p --quiet
+    fi
+}
+
+# 1. Install dependencies.
+install_dependencies
+
+# 2. Ensure HTTPS certificates are generated
+#    - If the certificates are not generated, generate them via certbot.
+#    - If the certificates are generated, renew them via certbot.
+ensure_https_certs
+
+# 3. Configure nginx for serving static files and proxying requests to xray.
+# 3.1 Configure xray logging.
+enable_xray_logging
+# 3.2 Enable xray systemd service.
+enable_xray_service
+# 3.3 Configure xray.
+configure_xray
+
+# 4. Configure nginx for serving static files and proxying requests to xray.
+# 4.1 Download clash rules.
+download_clash_rules
+# 4.2 Download clash dashboard.
+download_clash_dashboard
+# 4.3 Generate clash config.
+generate_clash_config
+# 4.4 Configure nginx.
+configure_nginx
+
+# 5. Enable BBR
+enable_bbr
+
+echo "Deployment completed!"
