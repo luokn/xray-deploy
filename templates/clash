@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 external-controller: 127.0.0.1:9090
 proxies:
-    - { name: 🪐 @PROXY ,type: trojan, server: @DOMAIN, port: 443, password: @PASSWD, udp: true, network: grpc, grpc-opts: { grpc-service-name: @GRPC_UUID } }
+    - { name: 🪐 @PROXY ,type: trojan, server: @DOMAIN, port: 443, password: @PASSWD, udp: true, network: grpc, grpc-opts: { grpc-service-name: @GRPC_PATH } }
 proxy-groups:
     - { name: 🕹️ 代理, type: select, proxies: [🪐 @PROXY, DIRECT] }
     - { name: 🎯 直连, type: select, proxies: [DIRECT] }
@@ -14,25 +14,25 @@ rule-providers:
         path: ./providers/proxy-domains.yaml
         behavior: domain
         interval: 86400
-        url: https://@DOMAIN/@RULE_UUID/providers/proxy-domains.yaml
+        url: https://@DOMAIN/@RULE_PATH/providers/proxy-domains.yaml
     🎯 域名集:
         type: http
         path: ./providers/direct-domains.yaml
         behavior: domain
         interval: 86400
-        url: https://@DOMAIN/@RULE_UUID/providers/direct-domains.yaml
+        url: https://@DOMAIN/@RULE_PATH/providers/direct-domains.yaml
     🕹️ 关键词:
         type: http
         path: ./providers/proxy-keywords.yaml
         behavior: classical
         interval: 86400
-        url: https://@DOMAIN/@RULE_UUID/providers/proxy-keywords.yaml
+        url: https://@DOMAIN/@RULE_PATH/providers/proxy-keywords.yaml
     🎯 关键词:
         type: http
         path: ./providers/direct-keywords.yaml
         behavior: classical
         interval: 86400
-        url: https://@DOMAIN/@RULE_UUID/providers/direct-keywords.yaml
+        url: https://@DOMAIN/@RULE_PATH/providers/direct-keywords.yaml
 rules:
     - GEOIP,LAN,DIRECT,no-resolve
     - RULE-SET,🕹️ 域名集,🕹️ 代理

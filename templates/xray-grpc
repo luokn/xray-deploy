@@ -13,7 +13,7 @@
             },
             "streamSettings": {
                 "network": "grpc",
-                "grpcSettings": { "serviceName": "@GRPC_UUID" }
+                "grpcSettings": { "serviceName": "@GRPC_PATH" }
             }
         }
     ],

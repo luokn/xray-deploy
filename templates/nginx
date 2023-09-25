@@ -19,7 +19,7 @@ server {
     keepalive_timeout       7d;
     client_header_timeout   7d;
 
-    location /@GRPC_UUID {
+    location /@GRPC_PATH {
         if ($content_type !~ "application/grpc") {
             return 404;
         }
@@ -33,11 +33,11 @@ server {
         grpc_read_timeout   7d;
     }
     
-    location /@RULE_UUID {
+    location /@RULE_PATH {
         alias /var/www/clash-rules;
     }
     
-    location /@CONF_UUID {
+    location /@CONF_PATH {
         alias /var/www/clash-config.yaml;
     }
 }

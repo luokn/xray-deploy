@@ -10,9 +10,9 @@ PROXY=
 DRY_RUN=
 
 PASSWD=$(uuidgen | xxd -r -p | base32 | tr -d =)
-GRPC_UUID=$(uuidgen | xxd -r -p | base32 | tr -d =)
-CONF_UUID=$(uuidgen | xxd -r -p | base32 | tr -d =)
-RULE_UUID=$(uuidgen | xxd -r -p | base32 | tr -d =)
+GRPC_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
+CONF_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
+RULE_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
 
 GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
@@ -213,7 +213,7 @@ generate_clash_config() {
         echo "Failed to download clash config template!"
         exit 1
     fi
-    sed -i "s/@PROXY/$PROXY/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
+    sed -i "s/@PROXY/$PROXY/g;s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_PATH/$GRPC_PATH/g;s/@RULE_PATH/$RULE_PATH/g" $TMP_FILE
     # Move the clash config file to /var/www.
     $DRY_RUN mv -bf $TMP_FILE /var/www/clash-config.yaml
 }
@@ -229,7 +229,7 @@ configure_nginx() {
         echo "Failed to download nginx config template!"
         exit 1
     fi
-    sed -i "s/@DOMAIN/$DOMAIN/g;s/@GRPC_UUID/$GRPC_UUID/g;s/@CONF_UUID/$CONF_UUID/g;s/@RULE_UUID/$RULE_UUID/g" $TMP_FILE
+    sed -i "s/@DOMAIN/$DOMAIN/g;s/@GRPC_PATH/$GRPC_PATH/g;s/@CONF_PATH/$CONF_PATH/g;s/@RULE_PATH/$RULE_PATH/g" $TMP_FILE
     # Move the nginx config file to /etc/nginx/sites-available.
     $DRY_RUN mv -bf $TMP_FILE /etc/nginx/sites-available/default
 
@@ -248,7 +248,7 @@ configure_xray() {
         echo "Failed to download xray config template!"
         exit 1
     fi
-    sed -i "s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_UUID/$GRPC_UUID/g" $TMP_FILE
+    sed -i "s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_PATH/$GRPC_PATH/g" $TMP_FILE
     # Move the xray config file to /usr/local/etc/xray.
     $DRY_RUN mv -bf $TMP_FILE /usr/local/etc/xray/config.json
 
@@ -334,4 +334,4 @@ configure_nginx
 enable_bbr
 
 echo "Deployment completed!"
-echo "Subsciption URL: https://$DOMAIN/$CONF_UUID"
+echo "Subsciption URL: https://$DOMAIN/$CONF_PATH"
