@@ -9,12 +9,6 @@ proxy-groups:
     - { name: 🕹️ 代理, type: select, proxies: [🪐 @PROXY, DIRECT] }
     - { name: 🎯 直连, type: select, proxies: [DIRECT] }
 rule-providers:
-    🎮 域名集:
-        type: http
-        path: ./providers/steam-domains.yaml
-        behavior: domain
-        interval: 86400
-        url: https://@DOMAIN/@RULE_UUID/providers/steam-domains.yaml
     🕹️ 域名集:
         type: http
         path: ./providers/proxy-domains.yaml
@@ -41,7 +35,6 @@ rule-providers:
         url: https://@DOMAIN/@RULE_UUID/providers/direct-keywords.yaml
 rules:
     - GEOIP,LAN,DIRECT,no-resolve
-    - RULE-SET,🎮 域名集,🕹️ 代理
     - RULE-SET,🕹️ 域名集,🕹️ 代理
     - RULE-SET,🕹️ 关键词,🕹️ 代理
     - RULE-SET,🎯 域名集,🎯 直连
