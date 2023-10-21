@@ -74,7 +74,7 @@ install_dependencies() {
 
     # Install certbot/nginx/git/curl/unzip/uuid-runtime from apt.
     $DRY_RUN apt update
-    $DRY_RUN apt install certbot nginx git curl unzip uuid-runtime
+    $DRY_RUN apt install certbot nginx git curl unzip uuid-runtime -y
 
     # Get the download url of the latest release.
     local DL_URL=$(curl -sL $GITHUB_API | grep -oE $DL_URL_REG | head -n 1)
