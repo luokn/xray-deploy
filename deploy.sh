@@ -9,10 +9,10 @@ DOMAIN=
 PROXY=
 DRY_RUN=
 
-PASSWD=$(uuidgen | xxd -r -p | base32 | tr -d =)
-GRPC_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
-CONF_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
-RULE_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
+PASSWD=
+GRPC_PATH=
+CONF_PATH=
+RULE_PATH=
 
 GITHUB_API="https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 DL_URL_REG="https://github.com/XTLS/Xray-core/releases/download/v[0-9|.]+/Xray-linux-64.zip"
@@ -73,42 +73,42 @@ install_dependencies() {
 
     echo "Installing dependencies..."
 
-    # Install certbot/nginx/git/curl from apt.
-
+    # Install certbot/nginx/git/curl/unzip/uuid-runtime from apt.
     $DRY_RUN apt update
-    $DRY_RUN apt install certbot nginx git curl unzip
+    $DRY_RUN apt install certbot nginx git curl unzip uuid-runtime
 
-    # Install xray from github if it is not installed.
-    if [ -z "$(which xray)" ]; then
-        # Get the download url of the latest release.
-        local DL_URL=$(curl -sL $GITHUB_API | grep -oE $DL_URL_REG | head -n 1)
-        if [ -z $DL_URL ]; then
-            echo "Failed to get download url from github!"
-            exit 1
-        fi
-        # Download the latest release.
-        curl -sL $DL_URL -o $TMP_FILE
-        if [ $? -ne 0 ]; then
-            echo "Failed to download Xray from github!"
-            exit 1
-        fi
-        # Unzip the downloaded file.
-        unzip -o $TMP_FILE -d $TMP_DIR
-        if [ $? -ne 0 ]; then
-            echo "Failed to unzip Xray!"
-            exit 1
-        fi
-        # Move the binary file to /usr/local/bin.
-        # Move the geoip.dat/geosite.dat to /usr/local/share.
-        $DRY_RUN mv -f $TMP_DIR/xray /usr/local/bin/
-        $DRY_RUN mv -f $TMP_DIR/geo* /usr/local/share/
-
-        # Remove the temporary files.
-        $DRY_RUN rm -rf $TMP_DIR $TMP_FILE
-    else
-        echo "Xray is already installed! Remove it first if you want to reinstall it."
+    # Get the download url of the latest release.
+    local DL_URL=$(curl -sL $GITHUB_API | grep -oE $DL_URL_REG | head -n 1)
+    if [ -z $DL_URL ]; then
+        echo "Failed to get download url from github!"
         exit 1
     fi
+    # Download the latest release.
+    curl -sL $DL_URL -o $TMP_FILE
+    if [ $? -ne 0 ]; then
+        echo "Failed to download Xray from github!"
+        exit 1
+    fi
+    # Unzip the downloaded file.
+    unzip -o $TMP_FILE -d $TMP_DIR
+    if [ $? -ne 0 ]; then
+        echo "Failed to unzip Xray!"
+        exit 1
+    fi
+    # Move the binary file to /usr/local/bin.
+    # Move the geoip.dat/geosite.dat to /usr/local/share.
+    $DRY_RUN mv -f $TMP_DIR/xray /usr/local/bin/
+    $DRY_RUN mv -f $TMP_DIR/geo* /usr/local/share/
+
+    # Remove the temporary files.
+    $DRY_RUN rm -rf $TMP_DIR $TMP_FILE
+}
+
+setup_secrets() {
+    PASSWD=$(uuidgen | xxd -r -p | base32 | tr -d =)
+    GRPC_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
+    CONF_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
+    RULE_PATH=$(uuidgen | xxd -r -p | base32 | tr -d =)
 }
 
 ensure_https_certs() {
@@ -306,6 +306,7 @@ enable_bbr() {
 
 # 1. Install dependencies.
 install_dependencies
+setup_secrets
 
 # 2. Ensure HTTPS certificates are generated
 #    - If the certificates are not generated, generate them via certbot.
