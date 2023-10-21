@@ -69,7 +69,6 @@ fi
 
 install_dependencies() {
     local TMP_FILE=/tmp/Xray-linux-64.zip
-    local TMP_DIR=/tmp/Xray-linux-64
 
     echo "Installing dependencies..."
 
@@ -90,18 +89,13 @@ install_dependencies() {
         exit 1
     fi
     # Unzip the downloaded file.
-    unzip -o $TMP_FILE -d $TMP_DIR
+    unzip -o $TMP_FILE -d /opt/xray
     if [ $? -ne 0 ]; then
         echo "Failed to unzip Xray!"
         exit 1
     fi
-    # Move the binary file to /usr/local/bin.
-    # Move the geoip.dat/geosite.dat to /usr/local/share.
-    $DRY_RUN mv -f $TMP_DIR/xray /usr/local/bin/
-    $DRY_RUN mv -f $TMP_DIR/geo* /usr/local/share/
-
     # Remove the temporary files.
-    $DRY_RUN rm -rf $TMP_DIR $TMP_FILE
+    $DRY_RUN rm -rf $TMP_FILE
 }
 
 setup_secrets() {
@@ -142,7 +136,7 @@ User=nobody
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
-ExecStart=/usr/local/bin/xray run -config /usr/local/etc/xray/config.json
+ExecStart=/opt/xray/xray run -config /opt/xray/config.json
 Restart=on-failure
 RestartPreventExitStatus=23
 LimitNPROC=10000
@@ -249,8 +243,8 @@ configure_xray() {
         exit 1
     fi
     sed -i "s/@DOMAIN/$DOMAIN/g;s/@PASSWD/$PASSWD/g;s/@GRPC_PATH/$GRPC_PATH/g" $TMP_FILE
-    # Move the xray config file to /usr/local/etc/xray.
-    $DRY_RUN mv -bf $TMP_FILE /usr/local/etc/xray/config.json
+    # Move the xray config file to /opt/xray/config.json.
+    $DRY_RUN mv -bf $TMP_FILE /opt/xray/config.json
 
     # Restart xray.
     $DRY_RUN systemctl restart xray
